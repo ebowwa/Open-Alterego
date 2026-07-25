@@ -22,6 +22,7 @@ export function makeAwsPresigner(cfg: R2Config): Presigner {
     credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
   };
   if (cfg.endpoint) clientOpts.endpoint = cfg.endpoint;
+  if (cfg.forcePathStyle) clientOpts.forcePathStyle = true;
 
   const client = new S3Client(clientOpts);
 

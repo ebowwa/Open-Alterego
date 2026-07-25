@@ -108,6 +108,9 @@ export function makeApp(deps: AppDeps): Hono {
     const r2Key = makeR2Key(body.speaker as string, body.session as string, clipId);
     const now = Date.now();
 
+    // Presign before inserting so an R2/presign failure leaves no orphan row.
+    const url = await deps.presigner.presignPut(r2Key, "video/mp4", deps.config.putTtlSec);
+
     deps.db.insert({
       clip_id: clipId,
       speaker: body.speaker as string,
@@ -126,8 +129,6 @@ export function makeApp(deps: AppDeps): Hono {
       uploaded_at: null,
       created_at: now,
     });
-
-    const url = await deps.presigner.presignPut(r2Key, "video/mp4", deps.config.putTtlSec);
     return c.json(
       {
         clip_id: clipId,

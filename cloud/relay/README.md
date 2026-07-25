@@ -50,7 +50,7 @@ bun x tsc --noEmit
 | `SPLIT_SESSION_MAP` | no | `s01:train,s02:val,s03:test` (default); unknown session → `train` |
 | `CONSENT_REQUIRED_REV` | no | refuse uploads below this consent rev (default `consent-2026-07-01`) |
 | `PROMPT_REV` | no | serve a specific prompt rev (default: newest in `prompts/`) |
-| `PORT` / `HOSTNAME` | no | `3004` / `127.0.0.1` (Caddy terminates TLS in front) |
+| `PORT` / `BIND_HOST` | no | `3004` / `127.0.0.1` (Caddy terminates TLS in front; set `BIND_HOST=0.0.0.0` to expose directly) |
 | `PUT_TTL_SEC` / `GET_TTL_SEC` | no | presign lifetimes (`900` / `3600`) |
 
 ## Endpoints (all under `/v1/collect/*` require `Authorization: Bearer <token>`)
