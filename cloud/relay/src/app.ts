@@ -60,7 +60,7 @@ export function makeApp(deps: AppDeps): Hono {
     c.json({ status: "ok", prompt_rev: deps.promptSet.prompt_rev }),
   );
 
-  app.use("/v1/collect/*", bearerAuth(deps.config.relayToken));
+  app.use("/v1/*", bearerAuth(deps.config.relayToken));
 
   app.get("/v1/collect/prompts", (c) => c.json(deps.promptSet));
 
@@ -185,6 +185,25 @@ export function makeApp(deps: AppDeps): Hono {
     const urls: Record<string, string> = {};
     for (const r of rows) {
       urls[r.clip_id] = await deps.presigner.presignGet(r.r2_key, deps.config.getTtlSec);
+    }
+    return c.json({ urls, expires_in: deps.config.getTtlSec });
+  });
+
+  // Generic presign for arbitrary R2 object keys (e.g. downloading a pretrained
+  // model stored in R2 for --pretrained-model r2:<key>). Same bucket/scoped
+  // token; presignGet cannot escape the configured bucket.
+  app.post("/v1/presign", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { keys?: unknown } | null;
+    const keys = body?.keys;
+    if (
+      !Array.isArray(keys) ||
+      !keys.every((k) => typeof k === "string" && k.trim().length > 0)
+    ) {
+      return c.json({ error: "invalid request; need keys: [string]" }, 400);
+    }
+    const urls: Record<string, string> = {};
+    for (const key of keys as string[]) {
+      urls[key] = await deps.presigner.presignGet(key, deps.config.getTtlSec);
     }
     return c.json({ urls, expires_in: deps.config.getTtlSec });
   });

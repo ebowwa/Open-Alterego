@@ -44,7 +44,7 @@ function baseConfig(overrides: Partial<Config> = {}): Config {
     relayToken: TOKEN,
     consentRequiredRev: "consent-2026-07-01",
     splitMap: { s01: "train", s02: "val", s03: "test" },
-    r2: { bucket: "b", endpoint: "https://r2.local", region: "auto", accessKeyId: "a", secretAccessKey: "s" },
+    r2: { bucket: "b", endpoint: "https://r2.local", region: "auto", accessKeyId: "a", secretAccessKey: "s", forcePathStyle: false },
     dbPath: join(tmpdir(), "collect.db"),
     putTtlSec: 900,
     getTtlSec: 3600,
@@ -262,6 +262,26 @@ describe("presign GETs", () => {
     expect(Object.keys(body.urls)).toEqual([a.clip_id]);
     expect(body.urls[a.clip_id]).toContain("r2.local/get/");
     expect(body.expires_in).toBe(3600);
+  });
+});
+
+describe("generic presign (raw R2 keys)", () => {
+  test("POST /v1/presign returns GET urls for arbitrary keys", async () => {
+    const res = await req("/v1/presign", {
+      method: "POST",
+      body: JSON.stringify({ keys: ["models/base.pt", "models/other.pt"] }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Object.keys(body.urls).sort()).toEqual(["models/base.pt", "models/other.pt"]);
+    expect(body.urls["models/base.pt"]).toContain("r2.local/get/");
+    expect(body.expires_in).toBe(3600);
+    expect(presigner.gets).toEqual(["models/base.pt", "models/other.pt"]);
+  });
+
+  test("invalid keys -> 400", async () => {
+    const res = await req("/v1/presign", { method: "POST", body: JSON.stringify({ keys: "not-an-array" }) });
+    expect(res.status).toBe(400);
   });
 });
 

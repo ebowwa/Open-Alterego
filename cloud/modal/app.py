@@ -1,6 +1,7 @@
 """Modal jobs for preprocessing and personalized Auto-AVSR fine-tuning."""
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -137,6 +138,7 @@ def prepare(
         str(RUNS_ROOT): runs_volume,
         "/cache/huggingface": hf_volume,
     },
+    secrets=[modal.Secret.from_name("alterego-relay")],
 )
 def train(
     dataset_name: str,
@@ -146,6 +148,9 @@ def train(
     strategy: str = "encoder-decoder",
     unfreeze_encoder_layers: int = 2,
     resume: bool = True,
+    pretrained_model: str = "default",
+    transfer_frontend: bool = False,
+    transfer_encoder: bool = False,
 ):
     """Run resumable, single-speaker fine-tuning on one Modal A10 GPU."""
 
@@ -198,7 +203,102 @@ def train(
     if resume and last_checkpoint.is_file():
         command.extend(["--resume-from", str(last_checkpoint)])
 
+    # Resolve --pretrained-model selector to a concrete checkpoint path. "default"
+    # returns None and train_personal downloads the pinned Auto-AVSR base.
+    if str(REMOTE_PROJECT) not in sys.path:
+        sys.path.insert(0, str(REMOTE_PROJECT))
+    from cloud.modal.pretrained_resolver import resolve_pretrained_model
+
+    pretrained_path = resolve_pretrained_model(
+        pretrained_model,
+        relay_base=os.environ.get("ALTEREGO_RELAY_BASE", ""),
+        relay_token=os.environ.get("ALTEREGO_RELAY_TOKEN", ""),
+    )
+    if pretrained_path is not None:
+        command.extend(["--pretrained-model-path", str(pretrained_path)])
+    if transfer_frontend:
+        command.append("--transfer-frontend")
+    if transfer_encoder:
+        command.append("--transfer-encoder")
+
     subprocess.run(command, cwd=REMOTE_PROJECT, check=True)
     runs_volume.commit()
     hf_volume.commit()
     return json.loads((output_dir / "run.json").read_text(encoding="utf-8"))
+
+
+@app.function(
+    gpu="A10",
+    cpu=8,
+    memory=32768,
+    timeout=2 * 60 * 60,
+    volumes={
+        str(DATA_ROOT): data_volume,
+        str(RUNS_ROOT): runs_volume,
+        "/cache/huggingface": hf_volume,
+    },
+    secrets=[modal.Secret.from_name("alterego-relay")],
+)
+def evaluate(
+    dataset_name: str,
+    run_name: str | None = None,
+    pretrained_model: str = "default",
+    transfer_frontend: bool = False,
+    transfer_encoder: bool = False,
+):
+    """Score a checkpoint on the dataset's test split → WER.
+
+    With ``run_name``, scores ``runs/<run_name>/personalized_model.pt`` (the
+    personalized model). Without it, scores the ``pretrained_model`` base
+    (default = pinned Auto-AVSR) — use that for base-vs-personalized A/B against
+    a train run's test WER in ``runs/<run_name>/run.json``.
+    """
+
+    dataset_name = _safe_name(dataset_name, "dataset_name")
+    processed = DATA_ROOT / dataset_name / "processed"
+    test_file = f"{dataset_name}_test.csv"
+    test_path = processed / "labels" / test_file
+    if not test_path.is_file():
+        raise FileNotFoundError(
+            f"Missing test split {test_path}; run prepare with a test split first"
+        )
+
+    if run_name:
+        run_name = _safe_name(run_name, "run_name")
+        checkpoint = str(RUNS_ROOT / run_name / "personalized_model.pt")
+        if not Path(checkpoint).is_file():
+            raise FileNotFoundError(
+                f"Personalized model not found: {checkpoint}; train first"
+            )
+        checkpoint_arg = checkpoint
+    else:
+        if str(REMOTE_PROJECT) not in sys.path:
+            sys.path.insert(0, str(REMOTE_PROJECT))
+        from cloud.modal.pretrained_resolver import resolve_pretrained_model
+
+        resolved = resolve_pretrained_model(
+            pretrained_model,
+            relay_base=os.environ.get("ALTEREGO_RELAY_BASE", ""),
+            relay_token=os.environ.get("ALTEREGO_RELAY_TOKEN", ""),
+        )
+        checkpoint_arg = resolved if resolved else "default"
+
+    command = [
+        sys.executable,
+        str(REMOTE_PROJECT / "training" / "eval_personal.py"),
+        "--root-dir",
+        str(processed),
+        "--test-file",
+        test_file,
+        "--checkpoint",
+        str(checkpoint_arg),
+    ]
+    if transfer_frontend:
+        command.append("--transfer-frontend")
+    if transfer_encoder:
+        command.append("--transfer-encoder")
+
+    subprocess.run(command, cwd=REMOTE_PROJECT, check=True)
+    data_volume.commit()
+    eval_result = processed / "eval_result.json"
+    return json.loads(eval_result.read_text(encoding="utf-8"))

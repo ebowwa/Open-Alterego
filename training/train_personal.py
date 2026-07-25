@@ -21,6 +21,17 @@ def parse_args(argv=None):
     parser.add_argument("--val-file", required=True)
     parser.add_argument("--test-file")
     parser.add_argument("--pretrained-model-path")
+    parser.add_argument(
+        "--transfer-frontend",
+        action="store_true",
+        help="load only frontend weights from a non-native checkpoint layout",
+    )
+    parser.add_argument(
+        "--transfer-encoder",
+        action="store_true",
+        help="load frontend+proj_encoder+encoder from a checkpoint with those "
+        "prefixes (e.g. an upstream auto_avsr encoder dump)",
+    )
     parser.add_argument("--resume-from")
     parser.add_argument(
         "--finetune-strategy",
