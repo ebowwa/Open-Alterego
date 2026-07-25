@@ -60,6 +60,11 @@ image = (
             "models",
         ],
     )
+    # The prepare/train subprocesses import the engine package
+    # (open_altergo_engine.datamodule, .model_assets, .lightning, .preparation),
+    # so install it from the copied source. pip_install only accepts package
+    # specifiers; install from the in-image path with run_commands.
+    .run_commands(f"pip install {REMOTE_PROJECT / 'cloud' / 'engine'}")
 )
 
 app = modal.App(APP_NAME, image=image)
