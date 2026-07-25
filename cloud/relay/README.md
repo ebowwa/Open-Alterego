@@ -82,7 +82,7 @@ bun run prompts/generate.ts --count 20 --rev 2026-07-25
 Prompts are letters + spaces only (digits spelled out) so they tokenize cleanly
 after `prepare_dataset.py` uppercases them.
 
-## Deploy (secondsee relay VPS)
+## Deploy (relay host)
 
 Behind Caddy (HTTPS). Copy this dir, `bun install --production`, run under a
 process manager with Doppler:

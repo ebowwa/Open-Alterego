@@ -31,8 +31,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     consentRequiredRev: env.CONSENT_REQUIRED_REV ?? "consent-2026-07-01",
     splitMap: parseSplitMap(env.SPLIT_SESSION_MAP),
     r2: {
-      // Prefer explicit R2_* names; fall back to the generic S3_* names used by
-      // the existing caringmind-relay Doppler scope (same Cloudflare R2 account).
+      // Prefer explicit R2_* names; fall back to generic S3_* names if an
+      // existing Doppler scope already holds Cloudflare R2 (S3-*) credentials.
       bucket: env.R2_BUCKET ?? env.S3_BUCKET ?? "",
       endpoint: env.R2_ENDPOINT ?? env.S3_ENDPOINT ?? "",
       region: env.R2_REGION ?? env.S3_REGION ?? "auto",
