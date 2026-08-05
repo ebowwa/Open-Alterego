@@ -12,6 +12,12 @@ doppler.yaml
 data/
 datasets/
 models/
+
+# Sample/test clips — never commit video bytes
+*.mp4
+*.mov
+*.m4v
+*.webm
 checkpoints/
 runs/
 outputs/

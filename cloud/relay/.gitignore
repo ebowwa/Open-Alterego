@@ -1,0 +1,6 @@
+node_modules/
+collect.db
+collect.db-*
+*.db
+*.db-*
+dist/
